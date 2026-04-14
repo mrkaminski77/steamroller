@@ -69,11 +69,11 @@ def ingest_landing_to_bronze(
     workspace_name = context.get("workspaceName")
     spark_pool_name = context.get("sparkPoolName")
     job_id = context.get("jobId")
-    synapse_guid = spark.conf.get("spark.synapse.frontend.session.id")
+    workspace_id = mssparkutils.env.getSubscriptionId()
 
-#https://web.azuresynapse.net/sparkui/f93616dd-45a6-40c8-9e29-adab2fb5f25c/workspaces/sra1dsynapsews/sparkpools/adhoc/livyid/11/summary
     spark_ui_url = (
-        f"https://web.azuresynapse.net/sparkui/{synapse_guid}/"
+        f"https://web.azuresynapse.net/sparkui/{workspace_id}/"
+        f"workspaces/{workspace_name}/"
         f"sparkpools/{spark_pool_name}/"
         f"livyid/{job_id}/"
         f"summary"
