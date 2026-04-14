@@ -69,13 +69,14 @@ def ingest_landing_to_bronze(
     workspace_name = context.get("workspaceName")
     spark_pool_name = context.get("sparkPoolName")
     job_id = context.get("jobId")
-    app_id = spark.sparkContext.applicationId
+    synapse_guid = spark.conf.get("spark.synapse.frontend.session.id")
 
+#https://web.azuresynapse.net/sparkui/f93616dd-45a6-40c8-9e29-adab2fb5f25c/workspaces/sra1dsynapsews/sparkpools/adhoc/livyid/11/summary
     spark_ui_url = (
-        f"https://web.azuresynapse.net/sparkui/{workspace_name}/"
+        f"https://web.azuresynapse.net/sparkui/{synapse_guid}/"
         f"sparkpools/{spark_pool_name}/"
-        f"sessions/{job_id}/"
-        f"applications/{app_id}"
+        f"livyid/{job_id}/"
+        f"summary"
     )
 
     if not blob_addresses:
@@ -129,7 +130,7 @@ def ingest_landing_to_bronze(
         df_clean = df_raw.drop(corrupt_col)
 
         record_count = df_clean.count()
-        actual_cols = set(f.name for f in df_clean.schema.fields)
+        actual_cols = set(f.name for f in df_clean.schema.fields if not f.name.startswith("_"))
         column_count = len(actual_cols)
         schema_snapshot = json.dumps(sorted(actual_cols))
 
