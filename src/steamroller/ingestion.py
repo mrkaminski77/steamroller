@@ -84,14 +84,23 @@ def ingest_landing_to_bronze(
     try:
         # --- 1. Read raw JSON using PERMISSIVE mode to capture malformed records ---
         corrupt_col = "_corrupt_record"
-        reader = spark.read.option("mode", "PERMISSIVE").option("columnNameOfCorruptRecord", corrupt_col)
+        reader = (
+            spark.read
+            .option("mode", "PERMISSIVE")
+            .option("columnNameOfCorruptRecord", corrupt_col)
+            .option("multiLine", "true")
+        )
 
         if schema is not None:
             # Append corrupt_record field to the caller-supplied schema so PERMISSIVE mode works
             enforced_schema = StructType(schema.fields + [StructField(corrupt_col, StringType(), True)])
             reader = reader.schema(enforced_schema)
 
-        df_raw = reader.json(blob_addresses).cache()
+        df_raw = (
+            reader.json(blob_addresses)
+            .withColumn("_input_file_name", F.input_file_name())
+            .cache()
+        )
 
         bad_record_count = df_raw.filter(F.col(corrupt_col).isNotNull()).count()
         df_clean = df_raw.drop(corrupt_col)
@@ -119,7 +128,6 @@ def ingest_landing_to_bronze(
             .withColumn("_ingested_at", F.current_timestamp())
             .withColumn("_source_system", F.lit(source_metadata.get("source_system")))
             .withColumn("_source_entity", F.lit(source_metadata.get("source_entity")))
-            .withColumn("_input_file_name", F.input_file_name())
             .withColumn("_pipeline_run_id", F.lit(pipeline_run_id))
         )
 
