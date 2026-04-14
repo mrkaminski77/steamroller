@@ -81,6 +81,29 @@ def ingest_landing_to_bronze(
     if not blob_addresses:
         raise ValueError("blob_addresses must contain at least one path.")
 
+    # --- Validate and normalise query_window timestamps ---
+    def _parse_timestamp(value, field_name):
+        if value is None:
+            return None
+        if isinstance(value, datetime.datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                # Handle Z suffix (not supported by fromisoformat before Python 3.11)
+                return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                raise ValueError(
+                    f"source_metadata['query_window']['{field_name}'] could not be parsed as a timestamp: {value!r}. "
+                    "Expected a datetime object or an ISO 8601 string (e.g. '2024-01-01T00:00:00Z')."
+                )
+        raise ValueError(
+            f"source_metadata['query_window']['{field_name}'] must be a datetime or ISO 8601 string, got {type(value).__name__}."
+        )
+
+    query_window_raw = source_metadata.get("query_window") or {}
+    query_start_time = _parse_timestamp(query_window_raw.get("start"), "start")
+    query_end_time   = _parse_timestamp(query_window_raw.get("end"), "end")
+
     try:
         # --- 1. Read raw JSON using PERMISSIVE mode to capture malformed records ---
         corrupt_col = "_corrupt_record"
@@ -149,13 +172,12 @@ def ingest_landing_to_bronze(
         ingestion_end = datetime.datetime.now()
         duration_seconds = (ingestion_end - ingestion_start).total_seconds()
 
-        query_window = source_metadata.get("query_window") or {}
         audit_data = [{
             "source_system": source_metadata.get("source_system"),
             "source_entity": source_metadata.get("source_entity"),
             "pipeline_run_id": pipeline_run_id,
-            "query_start_time": query_window.get("start"),
-            "query_end_time": query_window.get("end"),
+            "query_start_time": query_start_time,
+            "query_end_time": query_end_time,
             "query_params": {k: str(v) for k, v in (source_metadata.get("query_params") or {}).items()},
             "spark_ui_url": spark_ui_url,
             "record_count": record_count,
