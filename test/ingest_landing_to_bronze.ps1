@@ -94,7 +94,7 @@ fake_context = json.dumps({
 mssparkutils_mock = types.ModuleType("mssparkutils")
 mssparkutils_mock.env = mock.MagicMock()
 mssparkutils_mock.env.getJobContext = mock.MagicMock(return_value=fake_context)
-mssparkutils_mock.env.getSubscriptionId = mock.MagicMock(return_value="00000000-0000-0000-0000-000000000000")
+mssparkutils_mock.env.getSubscriptionId = mock.MagicMock(return_value="$subscription_id")
 sys.modules["mssparkutils"] = mssparkutils_mock
 
 from pyspark.sql.types import StructType
