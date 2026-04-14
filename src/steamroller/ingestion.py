@@ -91,7 +91,7 @@ def ingest_landing_to_bronze(
             enforced_schema = StructType(schema.fields + [StructField(corrupt_col, StringType(), True)])
             reader = reader.schema(enforced_schema)
 
-        df_raw = reader.json(blob_addresses)
+        df_raw = reader.json(blob_addresses).cache()
 
         bad_record_count = df_raw.filter(F.col(corrupt_col).isNotNull()).count()
         df_clean = df_raw.drop(corrupt_col)

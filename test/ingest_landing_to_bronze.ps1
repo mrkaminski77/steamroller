@@ -78,6 +78,24 @@ def _install_from_zip(repo_url):
 
 _install_from_zip("$github")
 
+import sys
+import types
+import unittest.mock as mock
+
+# mssparkutils is only injected in pipeline/notebook contexts, not Livy interactive sessions.
+# Stub it out so the function can be exercised end-to-end from a test script.
+fake_context = json.dumps({
+    "pipelineRunId": "test-run-001",
+    "workspaceName": "sra1dsynapsews",
+    "sparkPoolName": "adhoc",
+    "jobId":         "test-job-001",
+})
+
+mssparkutils_mock = types.ModuleType("mssparkutils")
+mssparkutils_mock.env = mock.MagicMock()
+mssparkutils_mock.env.getJobContext = mock.MagicMock(return_value=fake_context)
+sys.modules["mssparkutils"] = mssparkutils_mock
+
 from pyspark.sql.types import StructType
 from steamroller import ingest_landing_to_bronze
 
@@ -99,58 +117,46 @@ result = ingest_landing_to_bronze(
 print(result)
 "@
 
-# --- Synapse / Livy config ---
-$workspace_name  = "sra1dsynapsews"
-$spark_pool_name = "adhoc"   # replace with your pool name
-$livy_base       = "https://$workspace_name.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/$spark_pool_name"
-
-# --- Get a bearer token scoped to the Synapse dev endpoint ---
-$token = (az account get-access-token --resource https://dev.azuresynapse.net | ConvertFrom-Json).accessToken
-
-$headers = @{
-    "Authorization" = "Bearer $token"
-    "Content-Type"  = "application/json"
-}
+. "$PSScriptRoot\SynapseLiby.ps1"
 
 # --- 1. Create an interactive session ---
-$session_body = @{ kind = "pyspark" } | ConvertTo-Json
-$session = Invoke-RestMethod -Method Post -Uri "$livy_base/sessions" -Headers $headers -Body $session_body
-$session_id = $session.id
-Write-Host "Created session ID: $session_id"
+$session = New-SynapseSparkSession `
+    -WorkspaceName "sra1dsynapsews" `
+    -PoolName      "adhoc" `
+    -SessionName   "steamroller_ingest_test"
 
-# --- 2. Wait for the session to become idle ---
-do {
-    Start-Sleep -Seconds 10
-    $session_state = (Invoke-RestMethod -Method Get -Uri "$livy_base/sessions/$session_id" -Headers $headers).state
-    Write-Host "Session state: $session_state"
-} while ($session_state -in @("starting", "not_started"))
-
-if ($session_state -ne "idle") {
-    Write-Error "Session failed to start. Final state: $session_state"
-    exit 1
-}
-
-# --- 3. Submit the PySpark code as a statement ---
-$statement_body = @{ code = $sparkjob } | ConvertTo-Json -Depth 10
-$statement = Invoke-RestMethod -Method Post -Uri "$livy_base/sessions/$session_id/statements" -Headers $headers -Body $statement_body
-$statement_id = $statement.id
-Write-Host "Submitted statement ID: $statement_id"
-
-# --- 4. Poll until the statement completes ---
-do {
-    Start-Sleep -Seconds 5
-    $result = Invoke-RestMethod -Method Get -Uri "$livy_base/sessions/$session_id/statements/$statement_id" -Headers $headers
-    Write-Host "Statement state: $($result.state)"
-} while ($result.state -in @("waiting", "running"))
-
-# --- 5. Print output ---
-$output = $result.output
+# --- 2. Submit the ingestion job ---
+$output = Invoke-SparkStatement -Session $session -Code $sparkjob
 if ($output.status -eq "error") {
     Write-Error "PySpark error: $($output.evalue)`n$($output.traceback -join "`n")"
 } else {
     Write-Host "Output: $($output.data.'text/plain')"
 }
 
-# --- 6. Clean up session ---
-Invoke-RestMethod -Method Delete -Uri "$livy_base/sessions/$session_id" -Headers $headers | Out-Null
-Write-Host "Session $session_id deleted."
+# --- 6. Read back the bronze table ---
+Write-Host "`n--- Bronze table ---"
+$bronze_output = Invoke-SparkStatement -Session $session -Code @"
+df = spark.read.format('delta').load('$source_container/bronze/testdata_bronze')
+df.show(truncate=False)
+print(f'{df.count()} rows, {len(df.columns)} columns')
+"@
+if ($bronze_output.status -eq "error") {
+    Write-Error "Bronze read error: $($bronze_output.evalue)"
+} else {
+    Write-Host $bronze_output.data.'text/plain'
+}
+
+# --- 7. Read back the audit table ---
+Write-Host "`n--- Audit table ---"
+$audit_output = Invoke-SparkStatement -Session $session -Code @"
+df = spark.read.format('delta').load('$source_container/dq_audit/testdata_dq_audit')
+df.show(truncate=False)
+"@
+if ($audit_output.status -eq "error") {
+    Write-Error "Audit read error: $($audit_output.evalue)"
+} else {
+    Write-Host $audit_output.data.'text/plain'
+}
+
+# --- 8. Clean up session ---
+Remove-SynapseSparkSession -Session $session
