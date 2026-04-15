@@ -51,8 +51,6 @@ def ingest_landing_to_bronze(
             the audit record will include any columns present in the schema but missing from the
             data (schema_drift), and any unexpected columns present in the data.
     """
-    import mssparkutils
-
     spark = SparkSession.getActiveSession()
 
     # --- Resolve schema from path if a string was supplied ---
@@ -73,21 +71,23 @@ def ingest_landing_to_bronze(
     schema_drift = None
     spark_ui_url = None
 
-    # --- Extract job context ---
-    context = json.loads(mssparkutils.env.getJobContext())
-    workspace_name = context.get("workspaceName")
-    spark_pool_name = context.get("sparkPoolName")
-    job_id = context.get("jobId")
-    tenant_id = mssparkutils.env.getTenantId()
-    livy_id = spark.conf.get("spark.livy.session.id", None)
-
-    spark_ui_url = (
-        f"https://web.azuresynapse.net/sparkui/{tenant_id}/"
-        f"workspaces/{workspace_name}/"
-        f"sparkpools/{spark_pool_name}/"
-        f"livyid/{livy_id}/"
-        f"summary"
-    )
+    # --- Extract job context (notebook/pipeline context only; None in Livy batch) ---
+    try:
+        from notebookutils import mssparkutils
+        context = json.loads(mssparkutils.env.getJobContext())
+        workspace_name = context.get("workspaceName")
+        spark_pool_name = context.get("sparkPoolName")
+        livy_id = spark.conf.get("spark.livy.session.id", None)
+        tenant_id = mssparkutils.env.getTenantId()
+        spark_ui_url = (
+            f"https://web.azuresynapse.net/sparkui/{tenant_id}/"
+            f"workspaces/{workspace_name}/"
+            f"sparkpools/{spark_pool_name}/"
+            f"livyid/{livy_id}/"
+            f"summary"
+        )
+    except Exception:
+        spark_ui_url = None
 
     if not blob_addresses:
         raise ValueError("blob_addresses must contain at least one path.")
