@@ -77,3 +77,26 @@ function Remove-SynapseSparkSession {
     Invoke-RestMethod -Method Delete -Uri "$($Session.LivyBase)/sessions/$($Session.Id)" -Headers $Session.Headers | Out-Null
     Write-Host "Session $($Session.Id) deleted."
 }
+
+function Get-SparkSchema {
+    param(
+        [Parameter(Mandatory)][string] $workspace_name,
+        [Parameter(Mandatory)][string] $spark_pool_name,
+        [Parameter(Mandatory)][string] $abfss_path
+    )
+    $session = New-SynapseSparkSession -WorkspaceName $workspace_name -PoolName $spark_pool_name -SessionName "get_schema_temp_session"
+    $code = @"
+df = spark.read.format("json").load("$abfss_path")
+json_schema = df.schema.json()
+print(json_schema)
+"@
+    $output = Invoke-SparkStatement -Session $session -Code $code
+    Remove-SynapseSparkSession -Session $session
+
+    if ($output.status -eq "error") {
+        Write-Error "Error getting schema: $($output.evalue)`n$($output.traceback -join "`n")"
+        return $null
+    } else {
+        return $output.data.'text/plain'
+    }
+}

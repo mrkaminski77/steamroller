@@ -1,54 +1,13 @@
 $source_container = "abfss://temp@sra1dstasynapsews.dfs.core.windows.net"
+$schema_container = "abfss://config@sra1dstasynapsews.dfs.core.windows.net"
+$source_file = "output-agentEvents-639116714846793699.json"
+$schema_file = "transperth/agentEvents.json"
 $subscription_id = "e6dbcc53-5170-441b-8c16-e6d1c5a3c092"
 $tenant_id = "f93616dd-45a6-40c8-9e29-adab2fb5f25c"
 
-$source_data = @'
-{
-    "testdata": [
-        {"id": 1, "name": "Alice",   "age": 30, "city": "New York"},
-        {"id": 2, "name": "Bob",     "age": 25, "city": "Los Angeles"},
-        {"id": 3, "name": "Charlie", "age": 35, "city": "Chicago"}
-    ]
-}
-'@
 
-$source_schema = @'
-{
-    "type": "struct",
-    "fields": [
-        {
-            "name": "testdata",
-            "type": {
-                "type": "array",
-                "elementType": {
-                    "type": "struct",
-                    "fields": [
-                        {"name": "id",   "type": "integer", "nullable": true, "metadata": {}},
-                        {"name": "name", "type": "string",  "nullable": true, "metadata": {}},
-                        {"name": "age",  "type": "integer", "nullable": true, "metadata": {}},
-                        {"name": "city", "type": "string",  "nullable": true, "metadata": {}}
-                    ]
-                },
-                "containsNull": true
-            },
-            "nullable": true,
-            "metadata": {}
-        }
-    ]
-}
-'@
 
-# Write the test data to a temp file and upload to blob storage
-$tempFile = [System.IO.Path]::GetTempFileName() + ".json"
-$source_data | Set-Content -Path $tempFile -Encoding UTF8
-az storage blob upload `
-    --account-name sra1dstasynapsews `
-    --container-name temp `
-    --name testdata.json `
-    --file $tempFile `
-    --overwrite `
-    --auth-mode login
-Remove-Item $tempFile
+
 
 $github = "https://github.com/mrkaminski77/steamroller.git"
 
@@ -105,16 +64,16 @@ from steamroller import ingest_landing_to_bronze
 schema = StructType.fromJson(json.loads('''$source_schema'''))
 
 result = ingest_landing_to_bronze(
-    blob_addresses=["$source_container/testdata.json"],
+    blob_addresses=["$source_container/$source_file"],
     source_metadata={
         "source_system": "AzureBlobStorage",
-        "source_entity": "testdata",
+        "source_entity": "agentEvents",
         "query_window": {"start": "2024-01-01T00:00:00Z", "end": "2024-12-31T23:59:59Z"},
         "query_params": {"param1": "value1", "param2": "value2"},
     },
-    dq_audit_path="$source_container/dq_audit/testdata_dq_audit",
-    bronze_path="$source_container/bronze/testdata_bronze",
-    schema=schema,
+    dq_audit_path="$source_container/dq_audit/agentEvents_dq_audit",
+    bronze_path="$source_container/bronze/agentEvents_bronze",
+    schema="$schema_container/$schema_file",
 )
 
 print(result)
@@ -139,7 +98,7 @@ if ($output.status -eq "error") {
 # --- 6. Read back the bronze table ---
 Write-Host "`n--- Bronze table ---"
 $bronze_output = Invoke-SparkStatement -Session $session -Code @"
-df = spark.read.format('delta').load('$source_container/bronze/testdata_bronze')
+df = spark.read.format('delta').load('$source_container/bronze/agentEvents_bronze')
 df.show(truncate=False)
 print(f'{df.count()} rows, {len(df.columns)} columns')
 "@
@@ -152,7 +111,7 @@ if ($bronze_output.status -eq "error") {
 # --- 7. Read back the audit table ---
 Write-Host "`n--- Audit table ---"
 $audit_output = Invoke-SparkStatement -Session $session -Code @"
-df = spark.read.format('delta').load('$source_container/dq_audit/testdata_dq_audit')
+df = spark.read.format('delta').load('$source_container/dq_audit/agentEvents_dq_audit')
 df.show(truncate=False)
 "@
 if ($audit_output.status -eq "error") {

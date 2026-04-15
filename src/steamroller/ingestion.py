@@ -34,7 +34,7 @@ def ingest_landing_to_bronze(
     source_metadata: dict,
     dq_audit_path: str,
     bronze_path: str,
-    schema: StructType = None,
+    schema: "StructType | str | None" = None,
 ):
     """
     Ingests raw JSON blobs into a Bronze Delta table and logs metadata to an audit table.
@@ -45,12 +45,19 @@ def ingest_landing_to_bronze(
         - query_window: Optional dict with 'start' and 'end' timestamps for the data being ingested
         - query_params: Optional dict of any parameters used in the data extraction (e.g., filters, batch identifiers)
 
-    schema: Optional PySpark StructType. If provided, the read skips inference and the audit
-            record will include any columns present in the schema but missing from the data
-            (schema_drift), and any unexpected columns present in the data.
+    schema: Optional PySpark StructType, or an abfss:// path to a JSON blob containing a Spark
+            schema (as produced by StructType.json()). If provided, the read skips inference and
+            the audit record will include any columns present in the schema but missing from the
+            data (schema_drift), and any unexpected columns present in the data.
     """
     import mssparkutils
+
     spark = SparkSession.getActiveSession()
+
+    # --- Resolve schema from path if a string was supplied ---
+    if isinstance(schema, str):
+        schema_json = "\n".join(row.value for row in spark.read.text(schema).collect())
+        schema = StructType.fromJson(json.loads(schema_json))
     ingestion_start = datetime.datetime.now()
     status = "success"
     error_message = None
