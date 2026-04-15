@@ -136,8 +136,12 @@ def ingest_landing_to_bronze(
             .cache()
         )
 
-        bad_record_count = df_raw.filter(F.col(corrupt_col).isNotNull()).count()
-        df_clean = df_raw.drop(corrupt_col)
+        if corrupt_col in df_raw.columns:
+            bad_record_count = df_raw.filter(F.col(corrupt_col).isNotNull()).count()
+            df_clean = df_raw.drop(corrupt_col)
+        else:
+            bad_record_count = 0
+            df_clean = df_raw
 
         record_count = df_clean.count()
         actual_cols = set(f.name for f in df_clean.schema.fields if not f.name.startswith("_"))
