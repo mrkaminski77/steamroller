@@ -70,7 +70,7 @@ def ingest_landing_to_bronze(
     spark_pool_name = context.get("sparkPoolName")
     job_id = context.get("jobId")
     tenant_id = mssparkutils.env.getTenantId()
-    livy_id = spark.conf.get("spark.livy.id", None)
+    livy_id = spark.conf.get("spark.livy.session.id", None)
 
     spark_ui_url = (
         f"https://web.azuresynapse.net/sparkui/{tenant_id}/"
