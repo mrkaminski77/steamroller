@@ -51,7 +51,7 @@ def ingest_landing_to_bronze(
             the audit record will include any columns present in the schema but missing from the
             data (schema_drift), and any unexpected columns present in the data.
     """
-    spark = SparkSession.getActiveSession()
+    spark = SparkSession.builder.getOrCreate()
 
     # --- Resolve schema from path if a string was supplied ---
     if isinstance(schema, str):
