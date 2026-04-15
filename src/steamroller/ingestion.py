@@ -10,7 +10,7 @@ from pyspark.sql.types import (
 audit_schema = StructType([
     StructField("source_system", StringType(), True),
     StructField("source_entity", StringType(), True),
-    StructField("pipeline_run_id", StringType(), True),
+    StructField("batch_id", StringType(), True),
     StructField("query_start_time", TimestampType(), True),
     StructField("query_end_time", TimestampType(), True),
     StructField("query_params", MapType(StringType(), StringType()), True),
@@ -34,6 +34,7 @@ def ingest_landing_to_bronze(
     source_metadata: dict,
     dq_audit_path: str,
     bronze_path: str,
+    batch_id: str,
     schema: "StructType | str | None" = None,
 ):
     """
@@ -70,12 +71,10 @@ def ingest_landing_to_bronze(
     schema_snapshot = None
     schema_enforced = schema is not None
     schema_drift = None
-    pipeline_run_id = None
     spark_ui_url = None
 
     # --- Extract job context ---
     context = json.loads(mssparkutils.env.getJobContext())
-    pipeline_run_id = context.get("pipelineRunId")
     workspace_name = context.get("workspaceName")
     spark_pool_name = context.get("sparkPoolName")
     job_id = context.get("jobId")
@@ -163,7 +162,7 @@ def ingest_landing_to_bronze(
             .withColumn("_ingested_at", F.current_timestamp())
             .withColumn("_source_system", F.lit(source_metadata.get("source_system")))
             .withColumn("_source_entity", F.lit(source_metadata.get("source_entity")))
-            .withColumn("_pipeline_run_id", F.lit(pipeline_run_id))
+            .withColumn("_batch_id", F.lit(batch_id))
         )
 
         # --- 3. Write to Bronze Delta table ---
@@ -187,7 +186,7 @@ def ingest_landing_to_bronze(
         audit_data = [{
             "source_system": source_metadata.get("source_system"),
             "source_entity": source_metadata.get("source_entity"),
-            "pipeline_run_id": pipeline_run_id,
+            "batch_id": batch_id,
             "query_start_time": query_start_time,
             "query_end_time": query_end_time,
             "query_params": {k: str(v) for k, v in (source_metadata.get("query_params") or {}).items()},
