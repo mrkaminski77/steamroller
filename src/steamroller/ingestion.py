@@ -56,8 +56,11 @@ def ingest_landing_to_bronze(
 
     # --- Resolve schema from path if a string was supplied ---
     if isinstance(schema, str):
-        schema_json = "\n".join(row.value for row in spark.read.text(schema).collect())
-        schema = StructType.fromJson(json.loads(schema_json))
+        try:
+            schema_json = "\n".join(row.value for row in spark.read.text(schema).collect())
+            schema = StructType.fromJson(json.loads(schema_json))
+        except Exception as e:
+            raise ValueError(f"Failed to load schema from {schema}: {e}")
     ingestion_start = datetime.datetime.now()
     status = "success"
     error_message = None
