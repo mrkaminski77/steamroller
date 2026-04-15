@@ -1,5 +1,7 @@
 $source_container = "abfss://temp@sra1dstasynapsews.dfs.core.windows.net"
 $subscription_id = "e6dbcc53-5170-441b-8c16-e6d1c5a3c092"
+$tenant_id = "f93616dd-45a6-40c8-9e29-adab2fb5f25c"
+
 $source_data = @'
 {
     "testdata": [
@@ -94,7 +96,7 @@ fake_context = json.dumps({
 mssparkutils_mock = types.ModuleType("mssparkutils")
 mssparkutils_mock.env = mock.MagicMock()
 mssparkutils_mock.env.getJobContext = mock.MagicMock(return_value=fake_context)
-mssparkutils_mock.env.getSubscriptionId = mock.MagicMock(return_value="$subscription_id")
+mssparkutils_mock.env.getTenantId = mock.MagicMock(return_value="$tenant_id")
 sys.modules["mssparkutils"] = mssparkutils_mock
 
 from pyspark.sql.types import StructType
