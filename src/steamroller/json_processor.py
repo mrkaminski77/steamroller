@@ -2,8 +2,8 @@ import re
 from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, ArrayType
 
-def drill_and_flatten(df, path_string, delimiter="__", literal_dot_replacement="_"):
-    raw_parts = re.split(r"(?<!\\)\.", path_string)
+def drill_and_flatten(df, json_path: str, delimiter="__", literal_dot_replacement="_"):
+    raw_parts = re.split(r"(?<!\\)\.", json_path)
     parts = [p.replace(r"\.", ".") for p in raw_parts]
     
     # Pre-calculate the final prefix to identify child structs later
@@ -64,8 +64,8 @@ def drill_and_flatten(df, path_string, delimiter="__", literal_dot_replacement="
 
     return df
 	
-def prune_to_relationship(df, target_path, delimiter="__", literal_dot_replacement="_"):
-    raw_parts = re.split(r"(?<!\\)\.", target_path)
+def prune_to_relationship(df, json_path: str, delimiter="__", literal_dot_replacement="_"):
+    raw_parts = re.split(r"(?<!\\)\.", json_path)
     parts = [p.replace(r"\.", literal_dot_replacement) for p in raw_parts]
     target_prefix = delimiter.join(parts)
     
@@ -82,11 +82,11 @@ def prune_to_relationship(df, target_path, delimiter="__", literal_dot_replaceme
 
     return df.select(*cols_to_keep)	
 	
-def add_metadata(df, path_string, run_id):
+def add_metadata(df, json_path: str, run_id):
     return df.withColumn("_source_file", F.input_file_name()) \
              .withColumn("_load_timestamp", F.current_timestamp()) \
              .withColumn("_pipeline_run_id", F.lit(run_id)) \
-             .withColumn("_target_grain", F.lit(path_string)) \
+             .withColumn("_target_grain", F.lit(json_path)) \
              .withColumn("_record_hash", F.xxhash64(*df.columns))	
 			 
 def add_surrogate_key(df, key_parts, key_name="row_wid", delimiter="__"):

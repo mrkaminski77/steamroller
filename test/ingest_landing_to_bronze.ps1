@@ -61,8 +61,6 @@ sys.modules["mssparkutils"] = mssparkutils_mock
 from pyspark.sql.types import StructType
 from steamroller import ingest_landing_to_bronze
 
-schema = StructType.fromJson(json.loads('''$source_schema'''))
-
 result = ingest_landing_to_bronze(
     blob_addresses=["$source_container/$source_file"],
     source_metadata={
