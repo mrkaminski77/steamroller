@@ -2,6 +2,8 @@
 
 A PySpark utility library for building medallion data pipelines on Azure Synapse. It handles the mechanical work of ingesting raw JSON from blob storage into Delta Lake and processing nested JSON structures, so pipelines stay focused on business logic.
 
+The name is a portmanteau of **stream** and **steamroller** — flattening nested JSON feels like unrolling a stream of data, and a steamroller flattens anything in its path.
+
 ## Features
 
 - **Bronze ingestion** — Reads raw JSON files from `abfss://` blob paths into a Bronze Delta table with schema enforcement, drift detection, and malformed-row counting.

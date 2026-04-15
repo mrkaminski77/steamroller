@@ -1,0 +1,19 @@
+{
+    "targetBigDataPool": {
+        "referenceName": "{{spark_pool_name}}",
+        "type": "BigDataPoolReference"
+    },
+    "requiredSparkVersion": "3.4",
+    "language": "python",
+    "jobProperties": {
+        "file": "",
+        "numExecutors": 2,
+        "executorCores": 4,
+        "executorMemory": "28g",
+        "driverCores": 4,
+        "driverMemory": "28g",
+        "configuration": {
+            "spark.sql.sources.partitionOverwriteMode": "dynamic"
+        }
+    }
+}
